@@ -1,6 +1,8 @@
 import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
+import chalk from 'chalk';
+import searchUtils from './search';
 
 dotenv.config();
 
@@ -167,6 +169,95 @@ exports.getFriendPosts = async(username, callback) => {
                 callback(null, postsArr);
             });
         });
+    });
+};
+
+/**
+ * Updates the user's privacy preferences.
+ * @param {string} username - Username.
+ * @param {string} to - Privacy setting to change to.
+ */
+exports.updatePrivacyPreferences = async(username, to) => {
+    if (to !== 'private' && to !== 'public' && to !== 'protected') {
+        console.log(chalk.warn(`ERROR: Invalid privacy value passed: ${to}`));
+        return false;
+    }
+
+    const client = new MongoClient(uri, { useNewUrlParser: true });
+    client.connect(async err => {
+        if (err) throw err;
+
+        const collection = client.db('db').collection('users');
+        const result = await collection.findOneAndUpdate({ username },
+            { privacy: to });
+
+        if (to !== 'private') {await searchUtils.index('social.io', 'users', { username });}
+        else {await searchUtils.deleteDoc('social.io', 'users', username);}
+
+        return result;
+    });
+};
+
+/**
+ * Updates a user's password.
+ * @param {string} username - The username.
+ * @param {string} pwd - Plain-text password.
+ */
+exports.updatePassword = async(username, pwd) => {
+    const client = new MongoClient(uri, { useNewUrlParser: true });
+    client.connect(async err => {
+        if (err) throw err;
+
+        const collection = client.db('db').collection('users');
+
+        const hash = await bcrypt.hash(pwd, 10);
+
+        if (!hash) return false;
+
+        const result = await collection.findOneAndUpdate({ username },
+            { password: hash });
+
+        return result;
+    });
+};
+
+/**
+ * Checks whether two users are friends.
+ * @param {string} user1 - Username of first user
+ * @param {string} user2 - Username of second user
+ */
+exports.areFriends = async(user1, user2) => {
+    const client = new MongoClient(uri, { useNewUrlParser: true });
+    client.connect(err => {
+        if (err) throw err;
+
+        const collection = client.db('db').collection('friends');
+        collection.find({
+            user1,
+            user2
+        }, async(e, friends) => {
+            if (e) {return false;}
+
+            const f = await friends.toArray();
+            return f.length > 0;
+        });
+    });
+};
+
+/**
+ * Gets the privacy mode of the user.
+ * @param {string} username - Username.
+ */
+exports.getPrivacyMode = async username => {
+    const client = new MongoClient(uri, { useNewUrlParser: true });
+    client.connect(async err => {
+        if (err) throw err;
+
+        const collection = client.db('db').collection('users');
+        const result = await collection.findOne({ username },
+            { 'grades.$': 1 });
+
+        return result;
     });
 };
 
