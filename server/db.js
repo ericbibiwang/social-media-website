@@ -109,6 +109,8 @@ exports.register = (username, pwd, name, callback) => {
                 collection.insertOne({
                     username,
                     password: hash,
+                    dp: null,
+                    privacy: 'private',
                     name
                 }, e_ => {
                     if (e_) {
@@ -154,7 +156,7 @@ exports.getFriendPosts = async(username, callback) => {
                     $in: f.map(x => x.user1).concat(
                         f.map(x => x.user2))
                 }
-            }, async(postErr, posts) => {
+            }, { _id: 0 }, async(postErr, posts) => {
                 if (postErr) {
                     callback({
                         success: false,
@@ -255,7 +257,13 @@ exports.getPrivacyMode = async username => {
 
         const collection = client.db('db').collection('users');
         const result = await collection.findOne({ username },
-            { 'grades.$': 1 });
+            {
+                username: 0,
+                name: 0,
+                _id: 0,
+                dp: 0,
+                privacy: 1
+            });
 
         return result;
     });
