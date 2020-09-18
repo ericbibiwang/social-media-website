@@ -102,6 +102,46 @@ app.post('/api/authenticate', (req, res) => {
     }
 });
 
+app.post('/api/profileImage', async(req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    console.log(chalk.gray(`INFO: ${logRequest(req)}`));
+
+    const { token, profileImage } = req.body;
+
+    // Verify token
+    if (token) {
+        jwt.verify(token, process.env.SESSION_SECRET, async(err, decoded) => {
+            if (err) {
+                console.log(chalk.yellow('WARN: JWT verification failed.'));
+                res.end(JSON.stringify({
+                    success: false,
+                    message: 'Invalid token'
+                }));
+                return;
+            }
+
+            const { username } = decoded;
+            const result = await dbUtils.uploadProfileImage(username, profileImage);
+
+            if (result) {
+                console.log(chalk.green('INFO: Request successful.'));
+                res.end(JSON.stringify({ success: true }));
+                return;
+            }
+            else {
+                console.log(chalk.yellow('WARN: Failed to update preferences.'));
+                res.end(JSON.stringify({ success: false }));
+                return;
+            }
+        });
+    }
+    else {
+        console.log(console.warn('WARN: Empty token.'));
+        res.end(JSON.stringify({ success: false }));
+        return;
+    }
+});
+
 app.post('/api/register', (req, res) => {
     console.log(chalk.gray(`INFO: ${logRequest(req)}`));
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -280,6 +320,41 @@ app.post('/api/search', async(req, res) => {
     }
 });
 
+app.post('/api/user/delete', async(req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    console.log(chalk.info(`INFO: ${logRequest(req)}`));
+
+    const { token } = req.body;
+
+    if (token) {
+        jwt.verify(token, process.env.SESSION_SECRET, async(err, decoded) => {
+            if (err) {
+                console.log(chalk.yellow('WARN: JWT verification failed.'));
+                res.end(JSON.stringify({
+                    success: false,
+                    message: 'Invalid token'
+                }));
+                return;
+            }
+
+            const { username } = decoded;
+            await searchUtils.deleteDoc('social.io', 'user', username);
+
+            const deleteResult = await dbUtils.deleteUser(username);
+
+            if (!deleteResult.success) {console.log(chalk.red('ERROR: Deletion failed.'));}
+            else {console.log(chalk.green('INFO: Request successful.'));}
+
+            res.end(JSON.stringify(deleteResult));
+        });
+    }
+    else {
+        console.log(console.warn('WARN: Empty token.'));
+        res.end(JSON.stringify({ success: false }));
+        return;
+    }
+});
+
 app.post('/api/user/privacy', async(req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     console.log(chalk.info(`INFO: ${logRequest(req)}`));
@@ -320,12 +395,39 @@ app.post('/api/user/privacy', async(req, res) => {
     }
 });
 
+app.post('/api/user/data', (req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    console.log(chalk.gray(`INFO: ${logRequest(req)}`));
+
+    const { token } = req.body;
+    if (token) {
+        jwt.verify(token, process.env.SESSION_SECRET, (err, decoded) => {
+            if (err) {
+                console.log(err);
+                console.log(chalk.yellow('WARN: JWT verification failed.'));
+                res.end(JSON.stringify({
+                    success: false,
+                    message: 'Invalid token'
+                }));
+                return;
+            }
+
+            const { username } = decoded;
+            console.log(chalk.cyan(`INFO: Data request for user ${username}`));
+            res.end(JSON.stringify({ success: true }));
+        });
+    }
+    else {
+        console.log(chalk.yellow('WARN: Empty token'));
+        res.end(JSON.stringify({ success: false }));
+    }
+});
+
 app.post('/api/feed', async(req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     console.log(chalk.gray(`INFO: ${logRequest(req)}`));
 
     const { token } = req.body;
-    console.log(token);
     // Verify token
     if (token) {
         jwt.verify(token, process.env.SESSION_SECRET, async(err, decoded) => {
